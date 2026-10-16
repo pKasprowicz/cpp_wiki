@@ -113,12 +113,17 @@ the output silently. The CI npm cache key includes the commit, so a bump starts 
 
 Pull requests build the site but publish nothing and upload nothing.
 
-**The site must stay private.** It is derived from copyrighted standard text. The deploy job reads
-`GET /repos/{owner}/{repo}/pages` and stops unless `public` is exactly `false`. GitHub restricts
-Pages to repository readers only on **GitHub Enterprise Cloud**, for project sites published from a
-private or internal repository. One-time setup: Settings > Pages > Source "GitHub Actions", then
-set the visibility to private. On a plan without private Pages the deploy job fails by design; the
-`check` and `build` jobs still run.
+**Public or private.** The deploy job does not check the Pages visibility, so it works for a public
+repository with a public Pages site as well as for a private one (private Pages need GitHub
+Enterprise Cloud). One-time setup: Settings > Pages > Source "GitHub Actions". Until Pages is
+enabled the `build` job fails at "Look up the Pages address" on `main`; the `check` job and pull
+request builds are unaffected.
+
+What goes public: the pages under `wiki/` that are not excluded by `ignorePatterns` (see "What is
+published"), which are paraphrased summaries of the standard with section citations. The verbatim
+copy in `raw/` is outside `wiki/` and is never part of the site; the build also fails if a copy of
+it appears in `public/`. The repository itself, including `raw/`, is as visible as its own
+visibility setting makes it.
 
 Pinned in the workflow: Node via `site/versions.env`, every action by commit SHA, Quartz by tag and
 commit. npm downloads are cached with `actions/cache` (Quartz's lockfile is not in this repo, so

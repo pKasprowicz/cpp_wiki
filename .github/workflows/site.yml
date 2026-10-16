@@ -1,13 +1,13 @@
 name: Wiki site
 
 # Pull requests: lint the wiki, check wikilinks, build the site (nothing is published).
-# Push to main:  the same checks, then deploy to GitHub Pages.
+# Push to main:  the same checks, then deploy to GitHub Pages. The deploy job works for
+# a public repository (public Pages site) as well as a private one; it does not check
+# the Pages visibility.
 #
-# The content derives from copyrighted standard text, so the deploy job refuses to
-# publish unless GitHub Pages for this repository is private (access-controlled).
-# That needs GitHub Enterprise Cloud and a private or internal repository; see
-# site/README.md. Every build step goes through scripts/build-site.sh, the same
-# script used locally. Pinned versions live in site/versions.env.
+# One-time setup: Settings > Pages > Source "GitHub Actions". Only wiki/ is published,
+# never raw/; see site/README.md. Every build step goes through scripts/build-site.sh,
+# the same script used locally. Pinned versions live in site/versions.env.
 
 on:
   pull_request:
@@ -85,13 +85,13 @@ jobs:
           path: public
 
   deploy:
-    name: Deploy to GitHub Pages (private)
+    name: Deploy to GitHub Pages
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      pages: write # deploy-pages; also lets the visibility check below read the Pages settings
+      pages: write # deploy-pages
       id-token: write # deploy-pages verifies the deployment source
     concurrency:
       group: pages
@@ -100,18 +100,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      # Fails closed: anything other than an explicit `false` stops the deployment.
-      - name: Refuse to publish to a public Pages site
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          is_public="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.public')"
-          if [ "${is_public}" != "false" ]; then
-            echo "::error::GitHub Pages for ${GITHUB_REPOSITORY} is not private (public=${is_public}). The wiki is derived from copyrighted standard text and must not be published openly. Set Settings > Pages > Visibility to private (GitHub Enterprise Cloud) or change the deploy target."
-            exit 1
-          fi
-          echo "Pages visibility: private (public=false)"
-
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
