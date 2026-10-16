@@ -1,0 +1,117 @@
+name: Wiki site
+
+# Pull requests: lint the wiki, check wikilinks, build the site (nothing is published).
+# Push to main:  the same checks, then deploy to GitHub Pages.
+#
+# The content derives from copyrighted standard text, so the deploy job refuses to
+# publish unless GitHub Pages for this repository is private (access-controlled).
+# That needs GitHub Enterprise Cloud and a private or internal repository; see
+# site/README.md. Every build step goes through scripts/build-site.sh, the same
+# script used locally. Pinned versions live in site/versions.env.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wiki-site-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Third-party actions are pinned to commit SHAs; the trailing comment names the release.
+
+jobs:
+  check:
+    name: Lint wiki and check wikilinks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Fails on lint errors, malformed frontmatter and broken wikilinks.
+      - name: Wiki lint and wikilink check
+        run: bash scripts/build-site.sh check
+
+  build:
+    name: Build site
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pages: read # actions/configure-pages reads the Pages settings (main only)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Load pinned versions
+        run: cat site/versions.env >> "$GITHUB_ENV"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          # Quartz's package-lock.json is not in this repo, so setup-node's own
+          # cache cannot key on it; the npm download cache is restored below.
+          package-manager-cache: false
+
+      - name: Cache npm downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-node${{ env.NODE_VERSION }}-quartz${{ env.QUARTZ_COMMIT }}
+
+      # Only on main: asks GitHub for the site address so Quartz gets the right baseUrl
+      # (host plus path, no protocol). Fails early if Pages is not enabled for the repo.
+      - name: Look up the Pages address
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Build site
+        env:
+          SITE_BASE_URL: ${{ steps.pages.outputs.host }}${{ steps.pages.outputs.base_path }}
+        run: bash scripts/build-site.sh build
+
+      - name: Upload site for deployment
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: public
+
+  deploy:
+    name: Deploy to GitHub Pages (private)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      pages: write # deploy-pages; also lets the visibility check below read the Pages settings
+      id-token: write # deploy-pages verifies the deployment source
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      # Fails closed: anything other than an explicit `false` stops the deployment.
+      - name: Refuse to publish to a public Pages site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          is_public="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.public')"
+          if [ "${is_public}" != "false" ]; then
+            echo "::error::GitHub Pages for ${GITHUB_REPOSITORY} is not private (public=${is_public}). The wiki is derived from copyrighted standard text and must not be published openly. Set Settings > Pages > Visibility to private (GitHub Enterprise Cloud) or change the deploy target."
+            exit 1
+          fi
+          echo "Pages visibility: private (public=false)"
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

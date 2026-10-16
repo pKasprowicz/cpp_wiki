@@ -1,0 +1,12 @@
+# Keep shell scripts and Makefiles LF so they run on Linux runners even when
+# checked out on Windows with core.autocrlf=true.
+*.sh      text eol=lf
+Makefile  text eol=lf
+*.env     text eol=lf
+*.yml     text eol=lf
+*.py      text eol=lf
+*.mjs     text eol=lf
+
+# The raw copy of the standard is hashed (see wiki/sources/n4659-cpp17-draft-standard.md).
+# Never let git rewrite its line endings on checkout.
+raw/** -text

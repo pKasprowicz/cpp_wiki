@@ -1,0 +1,20 @@
+# --- Site build output and caches (see site/README.md) ---
+/public/
+/.quartz-cache/
+node_modules/
+
+# --- Generated wiki artifacts: rebuilt on demand, never committed ---
+# Retrieval cache (search-index.json, embeddings.sqlite); wiki/SCHEMA.md "Retrieval"
+/wiki/.wiki-cache/
+# Compiled graph; wiki/SCHEMA.md "Graph layer". wiki/graph/ontology.yaml and README.md stay tracked.
+/wiki/graph/nodes.jsonl
+/wiki/graph/edges.jsonl
+/wiki/graph/graph.graphml
+/wiki/graph/graph.sqlite
+
+# NOT ignored on purpose: wiki/index.md and wiki/indexes/*.md are hand-maintained
+# navigation pages, not generated output. wiki/log.md and wiki/SCHEMA.md likewise.
+
+# --- Misc ---
+__pycache__/
+*.pyc
