@@ -50,8 +50,10 @@ jobs:
         with:
           persist-credentials: false
 
+      # $GITHUB_ENV rejects anything but NAME=value lines, so skip the comments and
+      # blank lines of versions.env (the build script sources the same file as-is).
       - name: Load pinned versions
-        run: cat site/versions.env >> "$GITHUB_ENV"
+        run: grep -E '^[A-Za-z_][A-Za-z0-9_]*=' site/versions.env >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
